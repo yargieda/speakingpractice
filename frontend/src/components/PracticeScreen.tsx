@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Platform } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { colors, spacing, fonts, fontSize } from "@/src/theme/theme";
+import { colors, spacing, radius, fonts, fontSize } from "@/src/theme/theme";
 import type { Mode } from "@/src/data/mockData";
 import { useRecorder } from "@/src/hooks/use-recorder";
 import ChipRow from "@/src/components/ChipRow";
@@ -11,6 +12,7 @@ import PromptCard from "@/src/components/PromptCard";
 import TimerWidget, { type TimerPhase } from "@/src/components/TimerWidget";
 import RecordButton from "@/src/components/RecordButton";
 import TranscriptBox from "@/src/components/TranscriptBox";
+import AudioPlayer from "@/src/components/AudioPlayer";
 import ScoreBadge from "@/src/components/ScoreBadge";
 import FeedbackCards from "@/src/components/FeedbackCards";
 import PermissionSheet from "@/src/components/PermissionSheet";
@@ -38,9 +40,10 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
   const [prepLeft, setPrepLeft] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
-  // transcript reveal
+  // demo transcript reveal — used only when live browser STT is unavailable (native)
   const words = useMemo(() => type.transcriptSample.split(" "), [type.transcriptSample]);
   const [revealed, setRevealed] = useState(0);
+  const liveSupported = rec.liveSupported;
 
   // permission modal
   const [sheet, setSheet] = useState<null | "explain" | "blocked">(null);
@@ -55,6 +58,7 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     setElapsed(0);
     setRevealed(0);
     if (rec.isRecording) rec.stop();
+    rec.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typeId]);
 
@@ -80,13 +84,14 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     return () => clearTimeout(id);
   }, [rec.isRecording, elapsed, type.responseSeconds]);
 
-  // Live transcript reveal while recording.
+  // Live transcript reveal while recording — demo fallback only (native).
   useEffect(() => {
+    if (liveSupported) return;
     if (!rec.isRecording) return;
     if (revealed >= words.length) return;
     const id = setTimeout(() => setRevealed((v) => v + 1), 320);
     return () => clearTimeout(id);
-  }, [rec.isRecording, revealed, words.length]);
+  }, [liveSupported, rec.isRecording, revealed, words.length]);
 
   const startRecordingFlow = () => {
     setPrepLeft(null);
@@ -131,6 +136,14 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     setRevealed(0);
     setPrepLeft(null);
     if (rec.isRecording) rec.stop();
+    rec.reset();
+  };
+
+  const onReRecord = () => {
+    setRevealed(0);
+    setElapsed(0);
+    setPrepLeft(null);
+    rec.reset();
   };
 
   // Derive timer widget props.
@@ -152,7 +165,13 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     targetText = "Plan your answer — then record";
   }
 
-  const transcript = rec.isRecording || revealed > 0 ? words.slice(0, revealed).join(" ") : "";
+  const transcript = liveSupported
+    ? rec.transcript
+    : rec.isRecording || revealed > 0
+      ? words.slice(0, revealed).join(" ")
+      : "";
+
+  const showReRecord = !rec.isRecording && (transcript.length > 0 || rec.audioUri !== null);
 
   return (
     <View style={styles.root}>
@@ -210,6 +229,10 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
 
         <TranscriptBox text={transcript} live={rec.isRecording} />
 
+        {rec.audioUri && !rec.isRecording ? (
+          <AudioPlayer uri={rec.audioUri} accent={mode.accent} />
+        ) : null}
+
         <View style={styles.feedbackHeader}>
           <Text style={styles.feedbackTitle}>Assessment</Text>
           <Text style={styles.feedbackHint}>Sample feedback</Text>
@@ -228,7 +251,22 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
 
       {/* Sticky record bar */}
       <View style={[styles.recordBar, { paddingBottom: spacing.lg }]}>
-        <RecordButton recording={rec.isRecording} accent={mode.accent} onPress={onMicPress} />
+        <View style={styles.recordRow}>
+          <View style={styles.sideSlot}>
+            {showReRecord ? (
+              <Pressable
+                onPress={onReRecord}
+                style={styles.reRecord}
+                testID="re-record-button"
+              >
+                <Feather name="rotate-ccw" size={18} color={colors.onSurface} />
+                <Text style={styles.reRecordText}>Re-record</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          <RecordButton recording={rec.isRecording} accent={mode.accent} onPress={onMicPress} />
+          <View style={styles.sideSlot} />
+        </View>
       </View>
 
       <PermissionSheet
@@ -324,5 +362,32 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSecondary,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
+  },
+  recordRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "stretch",
+    paddingHorizontal: spacing.lg,
+  },
+  sideSlot: {
+    width: 96,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reRecord: {
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+  },
+  reRecordText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: fontSize.xs,
+    color: colors.onSurface,
   },
 });

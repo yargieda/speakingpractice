@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
   useSharedValue,
@@ -60,8 +60,7 @@ export default function RecordButton({ recording, accent, onPress }: Props) {
   return (
     <View style={styles.wrap}>
       <Animated.View
-        pointerEvents="none"
-        style={[styles.halo, { backgroundColor: colors.error }, haloStyle]}
+        style={[styles.halo, { backgroundColor: colors.error, pointerEvents: "none" }, haloStyle]}
       />
       <Animated.View style={buttonStyle}>
         <Pressable
@@ -107,11 +106,16 @@ const styles = StyleSheet.create({
     borderRadius: SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#1C1917",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 6,
+    ...Platform.select({
+      web: { boxShadow: "0px 4px 12px rgba(28,25,23,0.18)" },
+      default: {
+        shadowColor: "#1C1917",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.18,
+        shadowRadius: 12,
+        elevation: 6,
+      },
+    }),
   },
   stopIcon: {
     width: 28,

@@ -39,6 +39,12 @@ Build ONLY the lightweight mobile-first UI for a dual-mode speaking practice app
 - Live transcript box that reveals mock text word-by-word while recording.
 - Always-visible Score Badge (Band/Level + label) and correction cards (Grammar, Vocabulary, + Aviation Phraseology for ICAO), all mock JSON.
 
+## Phase 2 — Voice Recording + Real-time STT (2026-06)
+- Browser-native SpeechRecognition / webkitSpeechRecognition (en-US) streams live transcript into the Live Transcript Box (web). Platform-split hooks: `use-recorder.web.ts` (browser APIs) and `use-recorder.ts` (native expo-audio; falls back to demo transcript since browser STT is unavailable on native).
+- Parallel raw-audio capture via MediaRecorder (web) / expo-audio (native); AudioPlayer below the transcript lets the user listen back (`AudioPlayer.web.tsx` HTMLAudioElement / `AudioPlayer.tsx` expo-audio).
+- Re-record button clears transcript + audio and resets timers.
+- All client-side; no external AI/text-analysis services. Verified by testing agent (9/9 web flows pass).
+
 ## Backlog (Phase 2)
 - P0: Wire real speech-to-text for live transcript.
 - P0: Real AI scoring + feedback (IELTS band / ICAO level) from recorded audio.

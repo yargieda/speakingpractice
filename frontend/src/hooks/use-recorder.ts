@@ -1,8 +1,8 @@
-// Real microphone recording (native) with a web-safe simulation fallback.
-// UI phase: we capture real audio on device but the transcript is mock.
+// NATIVE implementation — real audio capture + playback via expo-audio.
+// Browser SpeechRecognition is unavailable on native, so liveSupported=false
+// and the screen falls back to a demo transcript. Audio playback is real.
 
 import { useCallback, useEffect, useState } from "react";
-import { Platform } from "react-native";
 import {
   useAudioRecorder,
   RecordingPresets,
@@ -16,13 +16,14 @@ export type PermStatus = "undetermined" | "granted" | "denied" | "blocked";
 export function useRecorder() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
-  const [permStatus, setPermStatus] = useState<PermStatus>(
-    Platform.OS === "web" ? "granted" : "undetermined",
-  );
+  const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [permStatus, setPermStatus] = useState<PermStatus>("undetermined");
 
-  // Reflect the current OS permission on mount (native only).
+  // Native browsers' live STT API is not available here.
+  const liveSupported = false;
+  const transcript = "";
+
   useEffect(() => {
-    if (Platform.OS === "web") return;
     (async () => {
       try {
         const res = await getRecordingPermissionsAsync();
@@ -30,17 +31,12 @@ export function useRecorder() {
           res.granted ? "granted" : res.canAskAgain ? "undetermined" : "blocked",
         );
       } catch {
-        // leave as undetermined
+        // stay undetermined
       }
     })();
   }, []);
 
-  // Triggers the native permission prompt (respects canAskAgain).
   const requestPermission = useCallback(async (): Promise<PermStatus> => {
-    if (Platform.OS === "web") {
-      setPermStatus("granted");
-      return "granted";
-    }
     try {
       const res = await requestRecordingPermissionsAsync();
       const status: PermStatus = res.granted
@@ -57,26 +53,40 @@ export function useRecorder() {
   }, []);
 
   const start = useCallback(async () => {
+    setAudioUri(null);
     setIsRecording(true);
-    if (Platform.OS === "web") return;
     try {
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
     } catch {
-      // Keep the UI in a recording state even if the native call hiccups.
+      // keep UI in recording state even if the native call hiccups
     }
   }, [recorder]);
 
   const stop = useCallback(async () => {
     setIsRecording(false);
-    if (Platform.OS === "web") return;
     try {
       await recorder.stop();
+      setAudioUri(recorder.uri ?? null);
     } catch {
       // ignore
     }
   }, [recorder]);
 
-  return { isRecording, permStatus, requestPermission, start, stop };
+  const reset = useCallback(() => {
+    setAudioUri(null);
+  }, []);
+
+  return {
+    isRecording,
+    transcript,
+    audioUri,
+    permStatus,
+    liveSupported,
+    requestPermission,
+    start,
+    stop,
+    reset,
+  };
 }

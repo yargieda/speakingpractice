@@ -1,0 +1,31 @@
+{
+  "summary": "Frontend-only testing for IELTS & ICAO Speaking Tutor (Expo web preview) Phase-2 voice recording + STT. All 9 acceptance flows pass on mobile viewport (390x844). App loads on /ielts (default) and /icao. permission-sheet + allow-microphone-button appear when perm is undetermined and grant path leads to recording (record-caption: 'Tap to stop', timer-value counts, LIVE badge visible). Stopping produces audio-player + audio-play-button + re-record-button; playback toggles to 'Playing…'. Re-record clears transcript to placeholder and removes audio-player. Chip switching (chip-part1/2/3, chip-picture/radio/emergency) resets timer/transcript. ICAO tab renders rust accent, extra 'Aviation Phraseology Check' feedback card, and score-badge. Note: In headless Chromium webkitSpeechRecognition IS present (liveSupported=true) so the word-by-word demo fallback does NOT fire; with fake media stream no real speech events fire, so transcript-text stays as placeholder during recording — this is expected environment behavior, not a bug. Minor: react-native-web deprecation warnings for 'shadow*' style props (RecordButton) and 'props.pointerEvents' (RecordButton halo).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "RecordButton", "issue": "react-native-web deprecation warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\"'. Reference: /app/frontend/src/components/RecordButton.tsx:110-113 (shadowColor/shadowOffset/shadowOpacity/shadowRadius on styles.button)."},
+      {"component": "RecordButton", "issue": "react-native-web deprecation warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/src/components/RecordButton.tsx:63 (Animated.View with pointerEvents=\"none\" for the halo)."}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Non-blocking: Replace shadow* props with boxShadow (or platform-guarded) in RecordButton.button style to silence RN-Web deprecation.",
+    "Non-blocking: Move pointerEvents=\"none\" from prop to style on the halo Animated.View in RecordButton to silence RN-Web deprecation.",
+    "Optional: Consider also triggering the demo transcript fallback when liveSupported=true but no interim results arrive within N seconds, so automated/CI browsers exercising fake media still see visible transcript growth."
+  ],
+  "critical_code_review_comments": [
+    "use-recorder.web.ts correctly cleans up MediaRecorder + SpeechRecognition + stream on unmount and revokes previous Blob URLs on reset — good.",
+    "PracticeScreen resets timers/transcript/audio on chip change and re-record — verified in UI.",
+    "All interactive elements expose kebab-case testIDs; navigation works via Expo Router tabs."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (skipped)", "frontend": "100% (9/9 acceptance flows)" },
+  "seed_data_creation": "None (no backend).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Base URL: https://speak-practice-hub-10.preview.emergentagent.com. Use mobile viewport 390x844. To exercise the permission-sheet flow, add an init script overriding navigator.permissions.query for 'microphone' to return {state:'prompt'} BEFORE navigation, then context.grant_permissions(['microphone'], origin=...) before clicking allow-microphone-button. In headless Chromium webkitSpeechRecognition is present so liveSupported=true and demo transcript fallback does NOT run — do not assert transcript-text becomes non-empty during recording unless you inject real audio via a virtual mic. Verify audio-player + re-record-button appear only after stopping a recording that actually captured MediaRecorder chunks (fake device satisfies this).",
+  "rca_of_issue": "N/A — no functional bugs found. Deprecation warnings are cosmetic (RN-Web >=0.75)."
+}

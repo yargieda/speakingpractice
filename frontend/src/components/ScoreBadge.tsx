@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
-import { colors, spacing, radius, fonts, fontSize } from "@/src/theme/theme";
+import { spacing, radius, fonts, fontSize } from "@/src/theme/theme";
 
 type Props = {
   label: string; // "IELTS Band" | "ICAO Level"
