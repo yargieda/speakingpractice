@@ -16,6 +16,7 @@ import TranscriptBox from "@/src/components/TranscriptBox";
 import AudioPlayer from "@/src/components/AudioPlayer";
 import ScoreBadge from "@/src/components/ScoreBadge";
 import FeedbackCards from "@/src/components/FeedbackCards";
+import ModelAnswerCard from "@/src/components/ModelAnswerCard";
 import PermissionSheet from "@/src/components/PermissionSheet";
 import StatsBar from "@/src/components/StatsBar";
 import { scorePractice, type Assessment } from "@/src/api/client";
@@ -413,6 +414,10 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
               ) : null}
 
               <FeedbackCards feedback={activeFeedback} />
+
+              {feedbackState === "scored" && aiAssessment?.modelAnswer ? (
+                <ModelAnswerCard answer={aiAssessment.modelAnswer} accent={mode.accent} />
+              ) : null}
             </Animated.View>
           </>
         )}

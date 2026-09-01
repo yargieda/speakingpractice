@@ -9,13 +9,14 @@ export type Assessment = {
   scoreValue: string;
   scoreCaption: string;
   summary?: string;
+  modelAnswer?: string;
   grammar: Correction[];
   vocabulary: Correction[];
   phraseology?: Correction[] | null;
 };
 
 export type ScorePayload = {
-  mode: "ielts" | "icao";
+  mode: "ielts" | "icao" | "free";
   practice_type: string;
   practice_label: string;
   prompt: string;
@@ -27,6 +28,7 @@ type RawAssessment = {
   score_value: string;
   score_caption: string;
   summary?: string;
+  model_answer?: string;
   grammar: Correction[];
   vocabulary: Correction[];
   phraseology?: Correction[] | null;
@@ -37,6 +39,7 @@ const normalizeAssessment = (a: RawAssessment): Assessment => ({
   scoreValue: a.score_value,
   scoreCaption: a.score_caption,
   summary: a.summary ?? "",
+  modelAnswer: a.model_answer ?? "",
   grammar: a.grammar ?? [],
   vocabulary: a.vocabulary ?? [],
   phraseology: a.phraseology ?? null,

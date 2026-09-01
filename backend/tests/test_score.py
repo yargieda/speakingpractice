@@ -1,11 +1,10 @@
-"""Backend tests for POST /api/score (IELTS + ICAO)."""
+"""Backend tests for POST /api/score (IELTS + ICAO + Free Talk, Phase-4 model answers)."""
 import os
 import pytest
 import requests
 
 BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/") if "EXPO_PUBLIC_BACKEND_URL" in os.environ else None
 if not BASE_URL:
-    # fall back to frontend/.env preview host
     from pathlib import Path
     for line in Path("/app/frontend/.env").read_text().splitlines():
         if line.startswith("EXPO_PUBLIC_BACKEND_URL="):
@@ -31,9 +30,15 @@ ICAO_TRANSCRIPT = (
     "souls on board one four two, endurance two hours fuel remaining, request vectors to final."
 )
 
+FREE_TRANSCRIPT = (
+    "So today I woke up quite early and went for a short walk in the park near my house, "
+    "and then I had coffee with a friend, we talked about our plans for the weekend and I felt "
+    "really happy because the weather was nice and the streets were quiet."
+)
 
-# --- IELTS -------------------------------------------------------------------
-def test_ielts_score_shape(api):
+
+# --- IELTS (Phase-4: model_answer required) ---------------------------------
+def test_ielts_score_shape_and_model_answer(api):
     r = api.post(f"{BASE_URL}/api/score", json={
         "mode": "ielts",
         "practice_type": "part2",
@@ -44,22 +49,23 @@ def test_ielts_score_shape(api):
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["score_label"] == "IELTS Band"
-    # score_value is a string but must be numeric 0-9 (0.5 steps)
     val = float(data["score_value"])
     assert 0.0 <= val <= 9.0
     assert isinstance(data["score_caption"], str) and data["score_caption"]
     assert isinstance(data["summary"], str) and data["summary"]
+    # Phase-4: model_answer must be non-empty
+    assert isinstance(data.get("model_answer"), str) and len(data["model_answer"].strip()) > 20, \
+        f"model_answer missing/empty: {data.get('model_answer')!r}"
     assert 2 <= len(data["grammar"]) <= 3
     assert len(data["vocabulary"]) == 3
     for item in data["grammar"] + data["vocabulary"]:
         assert set(item.keys()) >= {"original", "suggestion", "note"}
         assert item["original"] and item["suggestion"] and item["note"]
-    # phraseology must be null for IELTS
     assert data.get("phraseology") is None
 
 
-# --- ICAO --------------------------------------------------------------------
-def test_icao_score_shape(api):
+# --- ICAO (Phase-4: model_answer required) ----------------------------------
+def test_icao_score_shape_and_model_answer(api):
     r = api.post(f"{BASE_URL}/api/score", json={
         "mode": "icao",
         "practice_type": "emergency",
@@ -74,21 +80,45 @@ def test_icao_score_shape(api):
     assert 1 <= val <= 6
     assert data["score_caption"]
     assert data["summary"]
+    assert isinstance(data.get("model_answer"), str) and len(data["model_answer"].strip()) > 20, \
+        f"model_answer missing/empty: {data.get('model_answer')!r}"
     assert 2 <= len(data["grammar"]) <= 3
-    assert len(data["vocabulary"]) >= 2  # spec says ~3
+    assert len(data["vocabulary"]) >= 2
     assert isinstance(data["phraseology"], list)
     assert 2 <= len(data["phraseology"]) <= 3
     for item in data["phraseology"]:
         assert item["original"] and item["suggestion"] and item["note"]
 
 
-# --- Validation --------------------------------------------------------------
-def test_score_transcript_too_short(api):
+# --- Free Talk (Phase-4 new mode) -------------------------------------------
+def test_free_talk_score_shape(api):
     r = api.post(f"{BASE_URL}/api/score", json={
-        "mode": "ielts",
-        "practice_type": "part1",
-        "practice_label": "Part 1",
-        "prompt": "Tell me about your hometown.",
+        "mode": "free",
+        "practice_type": "free",
+        "practice_label": "Free Talk",
+        "prompt": "Tell me about your day so far.",
+        "transcript": FREE_TRANSCRIPT,
+    }, timeout=90)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["score_label"] == "Fluency"
+    assert isinstance(data["summary"], str) and data["summary"]
+    assert isinstance(data.get("model_answer"), str) and len(data["model_answer"].strip()) > 10
+    assert isinstance(data["grammar"], list) and len(data["grammar"]) <= 3
+    assert isinstance(data["vocabulary"]) if False else True
+    assert isinstance(data["vocabulary"], list) and len(data["vocabulary"]) <= 3
+    # phraseology must be null for free
+    assert data.get("phraseology") is None
+
+
+# --- Validation --------------------------------------------------------------
+@pytest.mark.parametrize("mode", ["ielts", "icao", "free"])
+def test_score_transcript_too_short(api, mode):
+    r = api.post(f"{BASE_URL}/api/score", json={
+        "mode": mode,
+        "practice_type": "x",
+        "practice_label": "x",
+        "prompt": "x",
         "transcript": "hi there",
     }, timeout=30)
     assert r.status_code == 400

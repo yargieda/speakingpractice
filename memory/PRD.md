@@ -62,3 +62,8 @@ Build ONLY the lightweight mobile-first UI for a dual-mode speaking practice app
 
 ## Next Tasks
 - Optional: progress charts/trends over time in History; export attempts; per-criterion IELTS sub-scores.
+
+## Phase 4 — Model Answers + Free Talk (2026-06)
+- Model Answers: /api/score now returns `model_answer` (GPT-5.4). IELTS = natural Band-9 answer to the exact prompt; ICAO = expert Level-6 standard-phraseology response. Shown as a collapsible "Model Answer" reveal card (`ModelAnswerCard`) in the scored result — an on-demand answer key.
+- Free Talk tab (4th tab): daily fluency practice with 20/30-min goal, on-device streak + progress bar (`src/utils/freetalk.ts`, key `free_talk_v1`), rotating conversational topics (`src/data/freeTopics.ts`), milestone + rotating encouragement messages, live transcript + StatsBar, and an optional "Get quick tips" that calls /api/score mode `free` (Fluency summary + gentle grammar/vocab tips + a "say it more fluently" model answer).
+- Backend adds mode `free` (score_label "Fluency", no exam band). Verified by testing agent: 7/7 backend + all frontend flows (real GPT-5.4).

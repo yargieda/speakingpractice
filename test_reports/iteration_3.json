@@ -1,0 +1,33 @@
+{
+  "summary": "Phase-4 (Model Answers + Free Talk) verified end-to-end. Backend pytest 7/7 passed: /api/score IELTS returns non-empty model_answer plus score_value 0-9 in IELTS Band + 2-3 grammar + 3 vocabulary + phraseology=null; ICAO returns non-empty model_answer plus 2-3 phraseology + score_value 1-6; new mode:'free' returns score_label='Fluency' + summary + <=3 grammar + <=3 vocabulary + non-empty model_answer + phraseology=null; <3-word transcript returns 400 for ielts/icao/free. Frontend (mobile 390x844, injected fake webkitSpeechRecognition + granted mic): IELTS flow tap record -> tap stop -> scoring-loading -> model-answer-card appears; model-answer-toggle reveals model-answer-text (visible: true) and collapsing removes it (count=0). Free Talk tab renders free-topic-card, free-topic-text, goal-chip-20/30 (switches target between /20:00 and /30:00), encouragement-text, next-topic-button (changes topic text). Recording 3s then stop advanced free-today-time from '0:00' to '0:03', localStorage key free_talk_v1 stored {byDate:{today:3}}, and time persisted after full page reload. get-tips-button appeared after stop; tapping it showed tips-loading then free-summary + FeedbackCards + a 'Say it more fluently' model-answer-card whose toggle also reveals its text. All 4 tabs (IELTS, ICAO, Free Talk, History) navigate without red screens. Only remaining warnings are the pre-existing react-native-web deprecation warnings on RecordButton (shadow* props, props.pointerEvents) already reported in iteration_1/2 and unrelated to this phase.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "RecordButton", "issue": "Pre-existing react-native-web deprecation: 'shadow*' style props deprecated (use boxShadow). Reference: /app/frontend/src/components/RecordButton.tsx"},
+      {"component": "RecordButton", "issue": "Pre-existing react-native-web deprecation: props.pointerEvents deprecated (use style.pointerEvents). Reference: /app/frontend/src/components/RecordButton.tsx"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_score.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "None blocking. Optional (already flagged in prior iterations): migrate RecordButton shadow* props to boxShadow and move pointerEvents='none' into style to silence RN-Web deprecation warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.py: build_system_message now emits model_answer for all three modes; Assessment.model_answer defaults to \"\" and is populated from parsed JSON via _strip_json — safe against markdown-fenced LLM output. phraseology remains None for ielts/free and a list for icao.",
+    "ModelAnswerCard.tsx: correct testIDs (model-answer-card, model-answer-toggle, model-answer-text); collapsed state omits model-answer-text from tree — matches the spec of tap-to-reveal / tap-to-collapse.",
+    "free.tsx: onMicPress -> rec.start(), and rec.isRecording true->false transition flushes sessionSeconds to storage via addSeconds -> localStorage free_talk_v1; goal chips update dailyGoalMin immediately. getTips guards <3-word transcript with tipState='error' before calling backend, matching backend 400 rule.",
+    "freetalk.ts: streak increments only if lastGoalDate === yesterday, otherwise resets to 1 — correct daily-streak logic; byDate is per-YYYY-MM-DD."
+  ],
+  "updated_files": ["/app/backend/tests/test_score.py"],
+  "success_rate": { "backend": "100% (7/7)", "frontend": "100% (Model-answer reveal/collapse on IELTS + all Free Talk acceptance flows + tab nav)" },
+  "seed_data_creation": "None. Free Talk localStorage was written organically by a 3-second recorded session during the test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Base URL: https://speak-practice-hub-10.preview.emergentagent.com. Backend pytest: /app/backend/tests/test_score.py (7 tests, ~13s, hits live gpt-5.4 via emergentintegrations). For frontend recording, you MUST context.add_init_script a FakeSR that fires a single final onresult after start() and calls onend() on stop(), AND context.grant_permissions(['microphone'], origin=BASE) — exact fake class inlined in this iteration's script. Free Talk persistence key is localStorage 'free_talk_v1'. History persistence key is 'practice_history_v1'. No new bugs found in this phase.",
+  "rca_of_issue": "N/A"
+}

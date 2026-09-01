@@ -25,6 +25,10 @@ export default function TabsLayout() {
           <Label>ICAO</Label>
           <Icon sf="airplane" />
         </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="free">
+          <Label>Free Talk</Label>
+          <Icon sf="bubble.left.and.bubble.right" />
+        </NativeTabs.Trigger>
         <NativeTabs.Trigger name="history">
           <Label>History</Label>
           <Icon sf="clock.arrow.circlepath" />
@@ -67,6 +71,15 @@ export default function TabsLayout() {
           title: "ICAO",
           tabBarIcon: ({ color, size }) => (
             <Feather name="send" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="free"
+        options={{
+          title: "Free Talk",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="message-circle" size={size} color={color} />
           ),
         }}
       />

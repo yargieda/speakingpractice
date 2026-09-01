@@ -44,6 +44,7 @@ class Assessment(BaseModel):
     score_value: str
     score_caption: str
     summary: str = ""
+    model_answer: str = ""
     grammar: List[Correction] = []
     vocabulary: List[Correction] = []
     phraseology: Optional[List[Correction]] = None
@@ -59,6 +60,19 @@ class ScoreRequest(BaseModel):
 
 # ----------------------------- AI prompts -----------------------------
 def build_system_message(mode: str) -> str:
+    if mode == "free":
+        return (
+            "You are a warm, encouraging English conversation coach helping a learner improve everyday "
+            "spoken fluency during a free-talk session. The transcript is casual speech, not an exam. Be "
+            "supportive and motivating, never harsh.\n"
+            "Return ONLY valid minified JSON (no markdown, no prose) with EXACTLY this shape:\n"
+            '{"summary":"<2 sentences: one encouraging observation about their speaking + one concrete thing to try next>",'
+            '"model_answer":"<a short example of how they could expand their idea more fluently and naturally, 2-3 sentences>",'
+            '"grammar":[{"original":"<quote>","suggestion":"<fixed>","note":"<gentle tip>"}],'
+            '"vocabulary":[{"original":"<word/phrase used>","suggestion":"<more natural or varied choice>","note":"<why it sounds better>"}]}\n'
+            "Provide up to 3 gentle grammar fixes and up to 3 vocabulary upgrades, grounded in the transcript. "
+            "If the transcript is short, still encourage them warmly."
+        )
     if mode == "icao":
         return (
             "You are a certified ICAO Aviation English rater assessing a pilot/ATC trainee's spoken "
@@ -69,6 +83,7 @@ def build_system_message(mode: str) -> str:
             "Return ONLY valid minified JSON (no markdown, no prose) with EXACTLY this shape:\n"
             '{"score_value":"<integer level 1-6, e.g. 4>","score_caption":"<official band name, e.g. Operational>",'
             '"summary":"<one sentence on plain-English clarity under operational stress>",'
+            '"model_answer":"<a concise expert Level-6 model response to the scenario using correct standard ICAO phraseology>",'
             '"grammar":[{"original":"<quote from transcript>","suggestion":"<fixed version>","note":"<short why>"}],'
             '"vocabulary":[{"original":"<generic wording used>","suggestion":"<standard aviation terminology>","note":"<why standard term is preferred>"}],'
             '"phraseology":[{"original":"<what they said>","suggestion":"<correct ICAO standard phraseology>","note":"<short rule>"}]}\n'
@@ -83,6 +98,7 @@ def build_system_message(mode: str) -> str:
         "Return ONLY valid minified JSON (no markdown, no prose) with EXACTLY this shape:\n"
         '{"score_value":"<band 0-9 in 0.5 steps, e.g. 7.5>","score_caption":"<official band name, e.g. Good User>",'
         '"summary":"<one sentence overall impression>",'
+        '"model_answer":"<a natural Band 9 model answer to this exact prompt, 2-4 sentences>",'
         '"grammar":[{"original":"<quote from transcript>","suggestion":"<fixed version>","note":"<short why>"}],'
         '"vocabulary":[{"original":"<word/phrase used>","suggestion":"<more advanced word, idiom or collocation>","note":"<why it is higher-band>"}]}\n'
         "Provide EXACTLY 2-3 grammar corrections and EXACTLY 3 advanced vocabulary/idiom suggestions. Ground every "
@@ -106,7 +122,13 @@ def _strip_json(text: str) -> str:
 
 
 async def run_assessment(req: ScoreRequest) -> Assessment:
-    score_label = "ICAO Level" if req.mode == "icao" else "IELTS Band"
+    if req.mode == "icao":
+        score_label = "ICAO Level"
+    elif req.mode == "free":
+        score_label = "Fluency"
+    else:
+        score_label = "IELTS Band"
+
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=f"score-{req.mode}-{req.practice_type or 'x'}",
@@ -138,9 +160,10 @@ async def run_assessment(req: ScoreRequest) -> Assessment:
 
     return Assessment(
         score_label=score_label,
-        score_value=str(parsed.get("score_value", "—")),
+        score_value=str(parsed.get("score_value", "")),
         score_caption=str(parsed.get("score_caption", "")),
         summary=str(parsed.get("summary", "")),
+        model_answer=str(parsed.get("model_answer", "")),
         grammar=corrections("grammar"),
         vocabulary=corrections("vocabulary"),
         phraseology=corrections("phraseology") if req.mode == "icao" else None,
