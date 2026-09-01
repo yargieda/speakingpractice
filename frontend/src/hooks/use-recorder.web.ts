@@ -15,6 +15,7 @@ export function useRecorder() {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [permStatus, setPermStatus] = useState<PermStatus>("undetermined");
 
   const liveSupported = !!getSR();
@@ -25,6 +26,10 @@ export function useRecorder() {
   const chunksRef = useRef<Blob[]>([]);
   const finalRef = useRef("");
   const recordingRef = useRef(false);
+  const audioDataRef = useRef<{ blob: Blob; url: string } | null>(null);
+
+  const getRecordedAudio = () =>
+    audioDataRef.current ? { blob: audioDataRef.current.blob } : null;
 
   // Reflect current mic permission state where the browser exposes it.
   useEffect(() => {
@@ -91,6 +96,8 @@ export function useRecorder() {
       clearAudio(prev);
       return null;
     });
+    setAudioBlob(null);
+    audioDataRef.current = null;
     chunksRef.current = [];
 
     let stream: MediaStream;
@@ -115,6 +122,8 @@ export function useRecorder() {
           type: mr.mimeType || "audio/webm",
         });
         const url = URL.createObjectURL(blob);
+        audioDataRef.current = { blob, url };
+        setAudioBlob(blob);
         setAudioUri(url);
         streamRef.current?.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
@@ -172,6 +181,8 @@ export function useRecorder() {
       clearAudio(prev);
       return null;
     });
+    setAudioBlob(null);
+    audioDataRef.current = null;
   }, [clearAudio]);
 
   // Cleanup on unmount.
@@ -196,9 +207,11 @@ export function useRecorder() {
     isRecording,
     transcript,
     audioUri,
+    audioBlob,
     permStatus,
     liveSupported,
     requestPermission,
+    getRecordedAudio,
     start,
     stop,
     reset,

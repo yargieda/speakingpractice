@@ -19,7 +19,7 @@ import FeedbackCards from "@/src/components/FeedbackCards";
 import ModelAnswerCard from "@/src/components/ModelAnswerCard";
 import PermissionSheet from "@/src/components/PermissionSheet";
 import StatsBar from "@/src/components/StatsBar";
-import { scorePractice, type Assessment } from "@/src/api/client";
+import { scorePractice, transcribeAudio, type Assessment } from "@/src/api/client";
 import { addHistory } from "@/src/utils/history";
 import { countFillers, wordCount, computeWpm } from "@/src/utils/fillers";
 
@@ -56,9 +56,10 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
 
   // AI scoring state
   const [feedbackState, setFeedbackState] = useState<
-    "sample" | "loading" | "scored" | "tooShort" | "error"
+    "sample" | "loading" | "transcribing" | "scored" | "tooShort" | "error"
   >("sample");
   const [aiAssessment, setAiAssessment] = useState<Assessment | null>(null);
+  const [resolvedTranscript, setResolvedTranscript] = useState<string | null>(null);
 
   const stopTimerRef = useRef<() => void>(() => {});
   stopTimerRef.current = () => rec.stop();
@@ -71,6 +72,7 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     setRevealed(0);
     setFeedbackState("sample");
     setAiAssessment(null);
+    setResolvedTranscript(null);
     if (rec.isRecording) rec.stop();
     rec.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -113,6 +115,7 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     setRevealed(0);
     setFeedbackState("sample");
     setAiAssessment(null);
+    setResolvedTranscript(null);
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     rec.start();
   };
@@ -153,6 +156,7 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     setPrepLeft(null);
     setFeedbackState("sample");
     setAiAssessment(null);
+    setResolvedTranscript(null);
     if (rec.isRecording) rec.stop();
     rec.reset();
   };
@@ -163,6 +167,7 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     setPrepLeft(null);
     setFeedbackState("sample");
     setAiAssessment(null);
+    setResolvedTranscript(null);
     rec.reset();
   };
 
@@ -185,13 +190,20 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     targetText = "Plan your answer — then record";
   }
 
-  const transcript = liveSupported
+  const liveTranscript = liveSupported
     ? rec.transcript
     : rec.isRecording || revealed > 0
       ? words.slice(0, revealed).join(" ")
       : "";
 
-  const showReRecord = !rec.isRecording && (transcript.length > 0 || rec.audioUri !== null);
+  // What the user sees: the finalized (Whisper) transcript once available, else the live one.
+  const transcript = resolvedTranscript ?? liveTranscript;
+
+  const showReRecord =
+    !rec.isRecording &&
+    feedbackState !== "transcribing" &&
+    feedbackState !== "loading" &&
+    (transcript.length > 0 || rec.audioUri !== null);
 
   // live stats
   const liveWords = wordCount(transcript);
@@ -199,21 +211,56 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
   const liveWpm = computeWpm(liveWords, elapsed);
 
   // capture latest values so post-stop scoring reads the finalized transcript
-  const latest = useRef({ transcript: "", elapsed: 0, prompt: "", label: "", typeId: "" });
-  latest.current = { transcript, elapsed, prompt, label: type.label, typeId: type.id };
+  const latest = useRef({ raw: "", elapsed: 0, prompt: "", label: "", typeId: "" });
+  latest.current = {
+    raw: rec.transcript, // real browser STT only ("" on native / when unavailable)
+    elapsed,
+    prompt,
+    label: type.label,
+    typeId: type.id,
+  };
+
+  const waitForAudio = async () => {
+    for (let i = 0; i < 15; i++) {
+      const a = rec.getRecordedAudio();
+      if (a) return a;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return null;
+  };
 
   const finalizeAndScore = async () => {
-    const { transcript: t, elapsed: dur, prompt: p, label, typeId: tId } = latest.current;
-    const wc = wordCount(t);
+    const { raw, elapsed: dur, prompt: p, label, typeId: tId } = latest.current;
+
+    // 1) Resolve the transcript: prefer live browser STT; otherwise Whisper the recording.
+    let finalT = (raw || "").trim();
+    if (wordCount(finalT) < 3) {
+      const audio = await waitForAudio();
+      if (audio) {
+        setFeedbackState("transcribing");
+        try {
+          finalT = (await transcribeAudio(audio)).trim();
+        } catch {
+          setFeedbackState("error");
+          return;
+        }
+      }
+    }
+    setResolvedTranscript(finalT);
+
+    // 2) Guard against empty/too-short speech.
+    const wc = wordCount(finalT);
     if (wc < 3) {
-      setFeedbackState(t.trim().length > 0 ? "tooShort" : "sample");
+      setFeedbackState(finalT.length > 0 ? "tooShort" : "sample");
       return;
     }
+
+    // 3) Score it.
     const stats = {
       wordCount: wc,
       durationSeconds: dur,
       wpm: computeWpm(wc, dur),
-      fillerCount: countFillers(t),
+      fillerCount: countFillers(finalT),
     };
     setFeedbackState("loading");
     try {
@@ -222,7 +269,7 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
         practice_type: tId,
         practice_label: label,
         prompt: p,
-        transcript: t,
+        transcript: finalT,
       });
       setAiAssessment(assessment);
       setFeedbackState("scored");
@@ -231,7 +278,7 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
         practiceType: tId,
         practiceLabel: label,
         prompt: p,
-        transcript: t,
+        transcript: finalT,
         assessment,
         stats,
       });
@@ -281,11 +328,13 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
       ? "AI assessment"
       : feedbackState === "loading"
         ? "Scoring…"
-        : feedbackState === "error"
-          ? "Scoring failed"
-          : feedbackState === "tooShort"
-            ? "Not enough speech"
-            : "Sample feedback";
+        : feedbackState === "transcribing"
+          ? "Transcribing…"
+          : feedbackState === "error"
+            ? "Scoring failed"
+            : feedbackState === "tooShort"
+              ? "Not enough speech"
+              : "Sample feedback";
 
   return (
     <View style={styles.root}>
@@ -364,7 +413,12 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
           <Text style={styles.feedbackHint}>{hintText}</Text>
         </View>
 
-        {feedbackState === "loading" ? (
+        {feedbackState === "transcribing" ? (
+          <View style={styles.stateCard} testID="transcribing-loading">
+            <ActivityIndicator color={mode.accent} />
+            <Text style={styles.stateText}>Transcribing your recording…</Text>
+          </View>
+        ) : feedbackState === "loading" ? (
           <View style={styles.stateCard} testID="scoring-loading">
             <ActivityIndicator color={mode.accent} />
             <Text style={styles.stateText}>Analysing your response with AI…</Text>

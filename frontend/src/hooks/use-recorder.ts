@@ -2,7 +2,7 @@
 // Browser SpeechRecognition is unavailable on native, so liveSupported=false
 // and the screen falls back to a demo transcript. Audio playback is real.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useAudioRecorder,
   RecordingPresets,
@@ -18,10 +18,15 @@ export function useRecorder() {
   const [isRecording, setIsRecording] = useState(false);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [permStatus, setPermStatus] = useState<PermStatus>("undetermined");
+  const audioUriRef = useRef<string | null>(null);
 
   // Native browsers' live STT API is not available here.
   const liveSupported = false;
   const transcript = "";
+  const audioBlob = null;
+
+  const getRecordedAudio = () =>
+    audioUriRef.current ? { uri: audioUriRef.current } : null;
 
   useEffect(() => {
     (async () => {
@@ -54,6 +59,7 @@ export function useRecorder() {
 
   const start = useCallback(async () => {
     setAudioUri(null);
+    audioUriRef.current = null;
     setIsRecording(true);
     try {
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
@@ -68,6 +74,7 @@ export function useRecorder() {
     setIsRecording(false);
     try {
       await recorder.stop();
+      audioUriRef.current = recorder.uri ?? null;
       setAudioUri(recorder.uri ?? null);
     } catch {
       // ignore
@@ -76,15 +83,18 @@ export function useRecorder() {
 
   const reset = useCallback(() => {
     setAudioUri(null);
+    audioUriRef.current = null;
   }, []);
 
   return {
     isRecording,
     transcript,
     audioUri,
+    audioBlob,
     permStatus,
     liveSupported,
     requestPermission,
+    getRecordedAudio,
     start,
     stop,
     reset,

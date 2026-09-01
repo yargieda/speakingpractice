@@ -60,6 +60,13 @@ Build ONLY the lightweight mobile-first UI for a dual-mode speaking practice app
 - Local session history in on-device storage (localStorage on web via the storage util) — `src/utils/history.ts`, key `practice_history_v1`; History tab lists past attempts (date, exam type, score, transcript, stats) with delete + pull-to-refresh; persists across reloads.
 - Verified end-to-end by testing agent: 4/4 backend + 9/9 frontend flows pass (real GPT-5.4 call exercised).
 
+## Phase 5 — Reliable Transcription (OpenAI Whisper) (2026-06)
+- Bug: browser `webkitSpeechRecognition` doesn't work in Safari/Firefox, inside the preview iframe, or on native → "record button doesn't transcribe/analyse".
+- Fix: server-side transcription. New `POST /api/transcribe` (multipart `audio`) → OpenAI Whisper (`whisper-1`) via emergentintegrations → `{transcript}`.
+- On Stop, the app uses the live browser transcript when it has ≥3 words, otherwise uploads the recorded audio (MediaRecorder webm on web / expo-audio m4a on native), shows a "Transcribing…" state, then scores. Works in IELTS, ICAO, and Free Talk (transcribes on "Get quick tips").
+- Hooks expose `getRecordedAudio()`; client adds `transcribeAudio()`. Verified by testing agent: 11/11 backend + frontend fallback fires (real-speech round-trip recognised).
+- Note: inside the embedded preview iframe the browser may block the mic — open the preview URL in its own Chrome tab or use a deployed build for real mic capture.
+
 ## Next Tasks
 - Optional: progress charts/trends over time in History; export attempts; per-criterion IELTS sub-scores.
 

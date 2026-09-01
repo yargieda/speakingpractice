@@ -57,3 +57,23 @@ export async function scorePractice(payload: ScorePayload): Promise<Assessment> 
   }
   return normalizeAssessment(await res.json());
 }
+
+// Server-side transcription (OpenAI Whisper) — reliable across all browsers + native.
+export async function transcribeAudio(audio: { blob?: Blob; uri?: string }): Promise<string> {
+  const form = new FormData();
+  if (audio.blob) {
+    form.append("audio", audio.blob, "recording.webm");
+  } else if (audio.uri) {
+    form.append("audio", {
+      uri: audio.uri,
+      name: "recording.m4a",
+      type: "audio/mp4",
+    } as any);
+  } else {
+    return "";
+  }
+  const res = await fetch(`${BASE}/api/transcribe`, { method: "POST", body: form });
+  if (!res.ok) throw new Error(`Transcribe failed (${res.status})`);
+  const data = await res.json();
+  return (data.transcript ?? "").trim();
+}

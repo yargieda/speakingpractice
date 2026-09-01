@@ -14,7 +14,7 @@ import StatsBar from "@/src/components/StatsBar";
 import FeedbackCards from "@/src/components/FeedbackCards";
 import ModelAnswerCard from "@/src/components/ModelAnswerCard";
 import PermissionSheet from "@/src/components/PermissionSheet";
-import { scorePractice, type Assessment } from "@/src/api/client";
+import { scorePractice, transcribeAudio, type Assessment } from "@/src/api/client";
 import { countFillers, wordCount, computeWpm } from "@/src/utils/fillers";
 import {
   getFreeTalk,
@@ -43,6 +43,7 @@ export default function FreeTalkTab() {
   // quick tips (AI)
   const [tipState, setTipState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [tips, setTips] = useState<Assessment | null>(null);
+  const [resolvedTranscript, setResolvedTranscript] = useState<string | null>(null);
 
   const goalMin = store?.dailyGoalMin ?? 20;
   const storedToday = store ? todaySeconds(store) : 0;
@@ -128,6 +129,7 @@ export default function FreeTalkTab() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setTipState("idle");
     setTips(null);
+    setResolvedTranscript(null);
     rec.start();
   };
 
@@ -159,11 +161,24 @@ export default function FreeTalkTab() {
   };
 
   const getTips = async () => {
-    const t = rec.transcript;
+    let t = rec.transcript.trim();
+    if (wordCount(t) < 3) {
+      const audio = rec.getRecordedAudio();
+      if (audio) {
+        setTipState("loading");
+        try {
+          t = (await transcribeAudio(audio)).trim();
+        } catch {
+          setTipState("error");
+          return;
+        }
+      }
+    }
     if (wordCount(t) < 3) {
       setTipState("error");
       return;
     }
+    setResolvedTranscript(t);
     setTipState("loading");
     try {
       const a = await scorePractice({
@@ -180,9 +195,10 @@ export default function FreeTalkTab() {
     }
   };
 
-  const liveWords = wordCount(rec.transcript);
+  const displayTranscript = resolvedTranscript ?? rec.transcript;
+  const liveWords = wordCount(displayTranscript);
   const goalReached = progress >= 1;
-  const hasTranscript = rec.transcript.trim().length > 0;
+  const hasTranscript = displayTranscript.trim().length > 0 || rec.audioUri !== null;
 
   return (
     <View style={styles.root}>
@@ -283,13 +299,13 @@ export default function FreeTalkTab() {
           </Text>
         </Animated.View>
 
-        <TranscriptBox text={rec.transcript} live={rec.isRecording} />
+        <TranscriptBox text={displayTranscript} live={rec.isRecording} />
 
         <StatsBar
           words={liveWords}
           wpm={computeWpm(liveWords, sessionSeconds)}
           seconds={sessionSeconds}
-          fillers={countFillers(rec.transcript)}
+          fillers={countFillers(displayTranscript)}
           accent={ACCENT}
         />
 
@@ -315,7 +331,7 @@ export default function FreeTalkTab() {
         {tipState === "error" ? (
           <View style={styles.tipNote} testID="tips-error">
             <Text style={styles.tipNoteText}>
-              Speak a little (in Chrome or a device build) to get tips.
+              Speak a few words first, then try again.
             </Text>
           </View>
         ) : null}

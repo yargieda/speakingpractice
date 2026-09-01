@@ -1,15 +1,17 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, File, UploadFile
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import json
+import tempfile
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+from emergentintegrations.llm.openai import OpenAISpeechToText
 
 
 ROOT_DIR = Path(__file__).parent
@@ -21,6 +23,11 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 EMERGENT_LLM_KEY = os.environ['EMERGENT_LLM_KEY']
+
+# OpenAI Whisper speech-to-text (server-side, reliable across all browsers + native)
+stt = OpenAISpeechToText(api_key=EMERGENT_LLM_KEY)
+ALLOWED_AUDIO = {".webm", ".m4a", ".aac", ".mp4", ".mp3", ".wav", ".mpeg", ".mpga", ".ogg"}
+MAX_AUDIO = 25 * 1024 * 1024
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -174,6 +181,36 @@ async def run_assessment(req: ScoreRequest) -> Assessment:
 @api_router.get("/")
 async def root():
     return {"message": "IELTS & ICAO Speaking Tutor API"}
+
+
+@api_router.post("/transcribe")
+async def transcribe(audio: UploadFile = File(...)):
+    suffix = Path(audio.filename or "audio.webm").suffix.lower()
+    if suffix not in ALLOWED_AUDIO:
+        suffix = ".webm"
+    data = await audio.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty audio file.")
+    if len(data) > MAX_AUDIO:
+        raise HTTPException(status_code=413, detail="Audio must be 25 MB or smaller.")
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
+        with open(tmp_path, "rb") as fh:
+            result = await stt.transcribe(fh, model="whisper-1", response_format="text", language="en")
+        text = result.text if hasattr(result, "text") else str(result)
+        return {"transcript": (text or "").strip()}
+    except Exception as e:
+        logger.exception("Transcription failed")
+        raise HTTPException(status_code=502, detail=f"Transcription failed: {e}")
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 @api_router.post("/score", response_model=Assessment)
