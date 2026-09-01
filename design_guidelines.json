@@ -1,0 +1,128 @@
+{
+  "app_name": "IELTS & ICAO Speaking Tutor",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "An academic, trustworthy, and rigorously clean interface focused entirely on clarity, assessment, and real-time speaking performance.",
+  "color": {
+    "surface": "#FAF9F6",
+    "onSurface": "#1C1917",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#1C1917",
+    "surfaceTertiary": "#F0ECE1",
+    "onSurfaceTertiary": "#292524",
+    "surfaceInverse": "#1C1917",
+    "onSurfaceInverse": "#FAF9F6",
+    "brand": "#292524",
+    "brandPrimary": "#292524",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#1B4332",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#9B2226",
+    "onBrandTertiary": "#FFFFFF",
+    "success": "#2D6A4F",
+    "onSuccess": "#FFFFFF",
+    "warning": "#E09F3E",
+    "onWarning": "#1C1917",
+    "error": "#9E2A2B",
+    "onError": "#FFFFFF",
+    "info": "#4A4D4A",
+    "onInfo": "#FFFFFF",
+    "border": "#E5E5E5",
+    "borderStrong": "#D4D4D4",
+    "divider": "#E5E5E5"
+  },
+  "typography": {
+    "displayFontFamily": "Lora",
+    "textFontFamily": "PlusJakartaSans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical rhythm. Use md/lg for internal card padding and xl for outer screen margins to ensure an uncluttered, academic reading experience.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 1,
+  "navigation": "bottom_tabs",
+  "icon_set": "Feather",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [
+      "Use subtle blurs only on sticky headers or bottom sheets if content scrolls significantly behind."
+    ],
+    "dont's": [
+      "Do not use heavy glass effects or neon glows; keep the UI structural, flat, and academic-focused."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "IELTS Speaking Practice (Tab 1)",
+      "purpose": "A dedicated space for IELTS test simulation featuring academic prompts, prep timers, and real-time recording UI.",
+      "states": {
+        "loading": "Centered minimalist spinner with 'Loading prompt...'",
+        "empty": "Illustration of vintage microphone, asking the user to select a Part (1, 2, or 3) to begin.",
+        "error": "Clean text 'Unable to load prompt' with a 'Retry' button."
+      },
+      "layout": "Header with title. Below header, horizontal scrolling chips for 'Part 1', 'Part 2 Cue Card', 'Part 3' using brandSecondary (Forest Green) for active state. The main content is a large surfaceSecondary card containing the Lora-font question prompt. Below it is a Timer Widget, a live Transcript Box (surfaceTertiary), and a sticky bottom container holding a massive, touch-friendly Record/Stop FAB. Feedback cards and Score Badge render dynamically below the prompt area once recording finishes."
+    },
+    {
+      "name": "ICAO Aviation Practice (Tab 2)",
+      "purpose": "Aviation English simulation focusing on radio phraseology, descriptions, and emergency scenarios.",
+      "states": {
+        "loading": "Centered minimalist spinner with 'Loading scenario...'",
+        "empty": "Background illustration of a cockpit horizon, prompting user to choose a scenario.",
+        "error": "Clean text 'Unable to load scenario' with a 'Retry' button."
+      },
+      "layout": "Follows the same structural hierarchy as Tab 1. Sub-selector chips include 'Picture Description', 'Radio Scenario', 'Emergency Response' using brandTertiary (Rust) for active states. The Prompt Card includes the aviation scenario text. Post-recording, a dedicated 'Aviation Phraseology Check' card appears alongside standard feedback."
+    }
+  ],
+  "images": {
+    "ielts_hero_bg": {
+      "url": "https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwxfHxpZWx0cyUyMGV4YW0lMjBhY2FkZW1pYyUyMHBhcGVyfGVufDB8fHx8MTc4ODI2MzQ2OXww&ixlib=rb-4.1.0&q=85",
+      "alt": "person writing on white paper representing IELTS test taking"
+    },
+    "icao_hero_bg": {
+      "url": "https://images.unsplash.com/flagged/photo-1579750481098-8b3a62c9b85d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwxfHxhdmlhdGlvbiUyMHBpbG90JTIwY29ja3BpdHxlbnwwfHx8fDE3ODgyNjM0Njh8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "An airplane cockpit at night with glowing instrument panels"
+    },
+    "microphone_empty_state": {
+      "url": "https://images.pexels.com/photos/26280295/pexels-photo-26280295.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Close-up of a vintage condenser microphone in a recording studio"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow Personality 1: iOS-Native Clean. The app must feel academic and strictly utilitarian—do not use heavy shadows, neon gradients, or playful elements.",
+    "BANNED: Do not use any shades of blue, purple, indigo, or navy anywhere in this app. Rely entirely on the provided Warm Charcoal (brandPrimary), Forest Green (brandSecondary for IELTS), and Rust (brandTertiary for ICAO).",
+    "Font weight limit: Do not use font weights above 500 anywhere. Use typography size for visual hierarchy. Headings should utilize 'Lora', while 'PlusJakartaSans' handles the body text.",
+    "Mode Distinction: IELTS mode active accents should leverage the 'brandSecondary' (Forest Green). ICAO mode active accents should leverage the 'brandTertiary' (Rust). This applies to the sub-selector chips and specific feedback headers.",
+    "Recording UI: Implement a massive, touch-friendly circular Record button. The active 'recording' state must pulse and utilize the 'error' (red) color visually. Pair it with a real-time updating live Transcript Box.",
+    "Feedback UI: Always render the feedback cards with mock JSON data. Use 'success', 'warning', and 'error' subtle tints for Grammar Fixes and Phraseology corrections. The Score Badge should be just the band/level number (e.g., 'Band 7.5' or 'Level 4') prominently displayed."
+  ]
+}
