@@ -52,5 +52,13 @@ Build ONLY the lightweight mobile-first UI for a dual-mode speaking practice app
 - P1: Playback of recorded audio.
 - P2: Model answers / sample band-9 responses per prompt.
 
+## Phase 3 — AI Evaluation + Local History (2026-06)
+- Backend `POST /api/score` (GPT-5.4 via emergentintegrations, evaluation-only, no DB): IELTS -> Band 0-9 + 2-3 grammar + 3 advanced vocabulary/idiom; ICAO -> Level 1-6 + grammar + standard aviation terminology + 2-3 phraseology corrections, plus a one-line summary. Returns 400 for transcripts under 3 words.
+- Scoring auto-runs on Stop: Idle -> Recording -> Processing (loading) -> Result, with a reanimated fade-in on the result.
+- Feedback dashboard populated dynamically (ScoreBadge + FeedbackCards); AI-corrected phrases highlighted inline in the transcript (line-through), filler words highlighted amber.
+- Live StatsBar: words, WPM, duration, filler count. Filler detection in `src/utils/fillers.ts`.
+- Local session history in on-device storage (localStorage on web via the storage util) — `src/utils/history.ts`, key `practice_history_v1`; History tab lists past attempts (date, exam type, score, transcript, stats) with delete + pull-to-refresh; persists across reloads.
+- Verified end-to-end by testing agent: 4/4 backend + 9/9 frontend flows pass (real GPT-5.4 call exercised).
+
 ## Next Tasks
-- Integrate STT + LLM scoring service in Phase 2 (swap mock feedback).
+- Optional: progress charts/trends over time in History; export attempts; per-criterion IELTS sub-scores.

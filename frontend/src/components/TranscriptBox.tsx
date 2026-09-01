@@ -2,13 +2,57 @@ import { View, Text, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
 import { colors, spacing, radius, fonts, fontSize } from "@/src/theme/theme";
+import { isFiller } from "@/src/utils/fillers";
 
 type Props = {
   text: string;
   live: boolean;
+  corrections?: string[];
 };
 
-export default function TranscriptBox({ text, live }: Props) {
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+function renderTokensWithFillers(text: string, keyBase: string) {
+  const parts = text.split(/(\s+)/);
+  return parts.map((part, i) => {
+    if (part === "" || /^\s+$/.test(part)) return <Text key={`${keyBase}-${i}`}>{part}</Text>;
+    if (isFiller(part)) {
+      return (
+        <Text key={`${keyBase}-${i}`} style={styles.filler}>
+          {part}
+        </Text>
+      );
+    }
+    return <Text key={`${keyBase}-${i}`}>{part}</Text>;
+  });
+}
+
+function renderContent(text: string, corrections?: string[]) {
+  const phrases = (corrections ?? [])
+    .map((p) => p.trim())
+    .filter((p) => p.length >= 2)
+    .sort((a, b) => b.length - a.length);
+
+  if (phrases.length === 0) return renderTokensWithFillers(text, "f");
+
+  const re = new RegExp(`(${phrases.map(escapeRe).join("|")})`, "gi");
+  const segments = text.split(re);
+  const lowerSet = new Set(phrases.map((p) => p.toLowerCase()));
+
+  return segments.map((seg, i) => {
+    if (seg === "") return null;
+    if (lowerSet.has(seg.toLowerCase())) {
+      return (
+        <Text key={`c-${i}`} style={styles.correction}>
+          {seg}
+        </Text>
+      );
+    }
+    return <Text key={`seg-${i}`}>{renderTokensWithFillers(seg, `s${i}`)}</Text>;
+  });
+}
+
+export default function TranscriptBox({ text, live, corrections }: Props) {
   const empty = text.length === 0;
 
   return (
@@ -30,7 +74,7 @@ export default function TranscriptBox({ text, live }: Props) {
         </Text>
       ) : (
         <Text style={styles.body} testID="transcript-text">
-          {text}
+          {renderContent(text, corrections)}
           {live ? <Text style={styles.caret}> ▍</Text> : null}
         </Text>
       )}
@@ -91,6 +135,18 @@ const styles = StyleSheet.create({
     fontSize: fontSize.base,
     color: colors.onSurface,
     lineHeight: 24,
+  },
+  filler: {
+    fontFamily: fonts.sansMedium,
+    color: "#B07514",
+    backgroundColor: colors.warningTint,
+    textDecorationLine: "underline",
+  },
+  correction: {
+    fontFamily: fonts.sansMedium,
+    color: colors.error,
+    backgroundColor: colors.errorTint,
+    textDecorationLine: "line-through",
   },
   caret: {
     color: colors.error,

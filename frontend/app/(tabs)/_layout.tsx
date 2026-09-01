@@ -25,6 +25,10 @@ export default function TabsLayout() {
           <Label>ICAO</Label>
           <Icon sf="airplane" />
         </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="history">
+          <Label>History</Label>
+          <Icon sf="clock.arrow.circlepath" />
+        </NativeTabs.Trigger>
       </NativeTabs>
     );
   }
@@ -63,6 +67,15 @@ export default function TabsLayout() {
           title: "ICAO",
           tabBarIcon: ({ color, size }) => (
             <Feather name="send" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: "History",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="clock" size={size} color={color} />
           ),
         }}
       />

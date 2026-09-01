@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, Platform } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView, Platform, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { colors, spacing, radius, fonts, fontSize } from "@/src/theme/theme";
 import type { Mode } from "@/src/data/mockData";
@@ -16,6 +17,10 @@ import AudioPlayer from "@/src/components/AudioPlayer";
 import ScoreBadge from "@/src/components/ScoreBadge";
 import FeedbackCards from "@/src/components/FeedbackCards";
 import PermissionSheet from "@/src/components/PermissionSheet";
+import StatsBar from "@/src/components/StatsBar";
+import { scorePractice, type Assessment } from "@/src/api/client";
+import { addHistory } from "@/src/utils/history";
+import { countFillers, wordCount, computeWpm } from "@/src/utils/fillers";
 
 const fmt = (secs: number) => {
   const m = Math.floor(secs / 60);
@@ -48,6 +53,12 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
   // permission modal
   const [sheet, setSheet] = useState<null | "explain" | "blocked">(null);
 
+  // AI scoring state
+  const [feedbackState, setFeedbackState] = useState<
+    "sample" | "loading" | "scored" | "tooShort" | "error"
+  >("sample");
+  const [aiAssessment, setAiAssessment] = useState<Assessment | null>(null);
+
   const stopTimerRef = useRef<() => void>(() => {});
   stopTimerRef.current = () => rec.stop();
 
@@ -57,6 +68,8 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     setPrepLeft(null);
     setElapsed(0);
     setRevealed(0);
+    setFeedbackState("sample");
+    setAiAssessment(null);
     if (rec.isRecording) rec.stop();
     rec.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -97,6 +110,8 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     setPrepLeft(null);
     setElapsed(0);
     setRevealed(0);
+    setFeedbackState("sample");
+    setAiAssessment(null);
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     rec.start();
   };
@@ -135,6 +150,8 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     setElapsed(0);
     setRevealed(0);
     setPrepLeft(null);
+    setFeedbackState("sample");
+    setAiAssessment(null);
     if (rec.isRecording) rec.stop();
     rec.reset();
   };
@@ -143,6 +160,8 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
     setRevealed(0);
     setElapsed(0);
     setPrepLeft(null);
+    setFeedbackState("sample");
+    setAiAssessment(null);
     rec.reset();
   };
 
@@ -172,6 +191,100 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
       : "";
 
   const showReRecord = !rec.isRecording && (transcript.length > 0 || rec.audioUri !== null);
+
+  // live stats
+  const liveWords = wordCount(transcript);
+  const liveFillers = countFillers(transcript);
+  const liveWpm = computeWpm(liveWords, elapsed);
+
+  // capture latest values so post-stop scoring reads the finalized transcript
+  const latest = useRef({ transcript: "", elapsed: 0, prompt: "", label: "", typeId: "" });
+  latest.current = { transcript, elapsed, prompt, label: type.label, typeId: type.id };
+
+  const finalizeAndScore = async () => {
+    const { transcript: t, elapsed: dur, prompt: p, label, typeId: tId } = latest.current;
+    const wc = wordCount(t);
+    if (wc < 3) {
+      setFeedbackState(t.trim().length > 0 ? "tooShort" : "sample");
+      return;
+    }
+    const stats = {
+      wordCount: wc,
+      durationSeconds: dur,
+      wpm: computeWpm(wc, dur),
+      fillerCount: countFillers(t),
+    };
+    setFeedbackState("loading");
+    try {
+      const assessment = await scorePractice({
+        mode: mode.id,
+        practice_type: tId,
+        practice_label: label,
+        prompt: p,
+        transcript: t,
+      });
+      setAiAssessment(assessment);
+      setFeedbackState("scored");
+      addHistory({
+        mode: mode.id,
+        practiceType: tId,
+        practiceLabel: label,
+        prompt: p,
+        transcript: t,
+        assessment,
+        stats,
+      });
+    } catch {
+      setFeedbackState("error");
+    }
+  };
+
+  const wasRecordingRef = useRef(false);
+  useEffect(() => {
+    if (rec.isRecording) {
+      wasRecordingRef.current = true;
+      return;
+    }
+    if (wasRecordingRef.current) {
+      wasRecordingRef.current = false;
+      finalizeAndScore();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rec.isRecording]);
+
+  const activeFeedback =
+    feedbackState === "scored" && aiAssessment
+      ? {
+          scoreLabel: aiAssessment.scoreLabel,
+          scoreValue: aiAssessment.scoreValue,
+          scoreCaption: aiAssessment.scoreCaption,
+          grammar: aiAssessment.grammar,
+          vocabulary: aiAssessment.vocabulary,
+          phraseology: aiAssessment.phraseology ?? undefined,
+        }
+      : type.feedback;
+
+  const correctionPhrases =
+    feedbackState === "scored" && aiAssessment
+      ? [
+          ...aiAssessment.grammar,
+          ...aiAssessment.vocabulary,
+          ...(aiAssessment.phraseology ?? []),
+        ]
+          .map((c) => c.original)
+          .filter((s) => s && s.trim().length >= 2)
+      : [];
+
+  const hintText =
+    feedbackState === "scored"
+      ? "AI assessment"
+      : feedbackState === "loading"
+        ? "Scoring…"
+        : feedbackState === "error"
+          ? "Scoring failed"
+          : feedbackState === "tooShort"
+            ? "Not enough speech"
+            : "Sample feedback";
 
   return (
     <View style={styles.root}>
@@ -227,7 +340,19 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
           onStartPrep={() => setPrepLeft(type.prepSeconds)}
         />
 
-        <TranscriptBox text={transcript} live={rec.isRecording} />
+        <TranscriptBox
+          text={transcript}
+          live={rec.isRecording}
+          corrections={correctionPhrases}
+        />
+
+        <StatsBar
+          words={liveWords}
+          wpm={liveWpm}
+          seconds={elapsed}
+          fillers={liveFillers}
+          accent={mode.accent}
+        />
 
         {rec.audioUri && !rec.isRecording ? (
           <AudioPlayer uri={rec.audioUri} accent={mode.accent} />
@@ -235,18 +360,62 @@ export default function PracticeScreen({ mode }: { mode: Mode }) {
 
         <View style={styles.feedbackHeader}>
           <Text style={styles.feedbackTitle}>Assessment</Text>
-          <Text style={styles.feedbackHint}>Sample feedback</Text>
+          <Text style={styles.feedbackHint}>{hintText}</Text>
         </View>
 
-        <ScoreBadge
-          label={type.feedback.scoreLabel}
-          value={type.feedback.scoreValue}
-          caption={type.feedback.scoreCaption}
-          accent={mode.accent}
-          onAccent={mode.onAccent}
-        />
+        {feedbackState === "loading" ? (
+          <View style={styles.stateCard} testID="scoring-loading">
+            <ActivityIndicator color={mode.accent} />
+            <Text style={styles.stateText}>Analysing your response with AI…</Text>
+          </View>
+        ) : feedbackState === "error" ? (
+          <View style={styles.stateCard} testID="scoring-error">
+            <Feather name="alert-triangle" size={20} color={colors.error} />
+            <Text style={styles.stateText}>Couldn&apos;t score this attempt.</Text>
+            <Pressable
+              style={[styles.retryBtn, { borderColor: mode.accent }]}
+              onPress={finalizeAndScore}
+              testID="retry-score-button"
+            >
+              <Feather name="refresh-cw" size={14} color={mode.accent} />
+              <Text style={[styles.retryText, { color: mode.accent }]}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            {feedbackState === "tooShort" ? (
+              <View style={styles.noteCard} testID="too-short-note">
+                <Feather name="info" size={16} color={colors.muted} />
+                <Text style={styles.noteText}>
+                  Speak a little longer to get a real AI score. Showing a sample below.
+                </Text>
+              </View>
+            ) : null}
 
-        <FeedbackCards feedback={type.feedback} />
+            <Animated.View
+              key={feedbackState === "scored" ? "scored" : "sample"}
+              entering={FadeInDown.duration(320)}
+              style={styles.resultBlock}
+            >
+              <ScoreBadge
+                label={activeFeedback.scoreLabel}
+                value={activeFeedback.scoreValue}
+                caption={activeFeedback.scoreCaption}
+                accent={mode.accent}
+                onAccent={mode.onAccent}
+              />
+
+              {feedbackState === "scored" && aiAssessment?.summary ? (
+                <View style={styles.summaryCard} testID="assessment-summary">
+                  <Feather name="message-square" size={15} color={mode.accent} />
+                  <Text style={styles.summaryText}>{aiAssessment.summary}</Text>
+                </View>
+              ) : null}
+
+              <FeedbackCards feedback={activeFeedback} />
+            </Animated.View>
+          </>
+        )}
       </ScrollView>
 
       {/* Sticky record bar */}
@@ -355,6 +524,72 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sans,
     fontSize: fontSize.xs,
     color: colors.muted,
+  },
+  stateCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing["2xl"],
+    paddingHorizontal: spacing.lg,
+  },
+  stateText: {
+    fontFamily: fonts.sans,
+    fontSize: fontSize.base,
+    color: colors.muted,
+    textAlign: "center",
+  },
+  retryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    height: 42,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  retryText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: fontSize.base,
+  },
+  noteCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceTertiary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  noteText: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: fontSize.sm,
+    color: colors.onSurfaceTertiary,
+    lineHeight: 20,
+  },
+  resultBlock: {
+    gap: spacing.lg,
+  },
+  summaryCard: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  summaryText: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: fontSize.sm,
+    color: colors.onSurface,
+    lineHeight: 21,
   },
   recordBar: {
     paddingTop: spacing.md,

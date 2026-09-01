@@ -1,0 +1,33 @@
+{
+  "summary": "Phase-3 AI scoring + local History end-to-end verified. Backend: 4/4 pytest passed (IELTS score returns IELTS Band 0-9 with 2-3 grammar + exactly 3 vocabulary, phraseology=null; ICAO returns ICAO Level 1-6 with 2-3 phraseology in addition; <3-word transcript -> 400; /api/ root 200). Frontend (mobile viewport 390x844, fake webkitSpeechRecognition injected via context.add_init_script + granted mic + fake media): Idle -> Recording (record-caption 'Tap to stop', LIVE badge, transcript-text populated by fake SR) -> Processing (scoring-loading with 'Analysing your response with AI…') -> Result (score-badge shows AI score_value e.g. '3.5', assessment-summary card renders, feedback-card-edit-3 + feedback-card-trending-up render for IELTS). Corrected phrases returned by AI are highlighted inside transcript-text (2 line-through spans matched). History tab shows history-card-<id> after scoring, PERSISTS across page reload (localStorage), history-delete-<id> removes the card and it remains removed after reload. Re-record clears transcript back to placeholder, removes audio-player, and hint returns to 'Sample feedback'. Navigation across IELTS, ICAO, History tabs works with no red-screen errors; ICAO sample state shows 3 feedback cards including feedback-card-radio (Aviation Phraseology Check) with rust accent. Only issues are pre-existing cosmetic react-native-web deprecation warnings already reported in iteration_1.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "RecordButton", "issue": "react-native-web deprecation warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\"'. Reference: /app/frontend/src/components/RecordButton.tsx (shadowColor/shadowOffset/shadowOpacity/shadowRadius on styles.button). Pre-existing from iteration_1, non-blocking."},
+      {"component": "RecordButton", "issue": "react-native-web deprecation warning: 'props.pointerEvents is deprecated. Use style.pointerEvents' on Animated.View halo. Pre-existing from iteration_1, non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_score.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional (already flagged): Replace shadow* props with boxShadow and move pointerEvents='none' into style on RecordButton to silence RN-Web deprecation warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.py /api/score correctly enforces >=3-word validation, defaults phraseology to null for IELTS, calls emergentintegrations LlmChat with gpt-5.4 and strips JSON safely. Uses Pydantic response_model=Assessment.",
+    "PracticeScreen.tsx captures latest transcript/duration in a ref and only fires finalizeAndScore on transition rec.isRecording=true->false via wasRecordingRef, which avoids stale-state scoring bugs.",
+    "TranscriptBox.tsx highlights AI-returned corrections with a case-insensitive regex on longest-first phrases and preserves filler highlighting elsewhere — verified 2 line-through spans in the scored transcript.",
+    "history.ts persists via storage util (localStorage on web) keyed as practice_history_v1 with 100-entry cap and dedicated add/delete/clear — verified persistence across full page reload."
+  ],
+  "updated_files": ["/app/backend/tests/test_score.py"],
+  "success_rate": { "backend": "100% (4/4)", "frontend": "100% (9/9 acceptance flows: record, live transcript, stop, processing, result, highlighted corrections, history persist, history delete, re-record, ICAO sample cards + tab nav)" },
+  "seed_data_creation": "None. History entries were created organically by running the AI scoring flow through the UI.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Base URL: https://speak-practice-hub-10.preview.emergentagent.com. For frontend web testing of the recording flow, MUST inject a fake window.SpeechRecognition/webkitSpeechRecognition via context.add_init_script BEFORE navigation, plus context.grant_permissions(['microphone'], origin=<base>). See /app/test_reports/iteration_2.json commit for the exact fake SR class that fires a single final result (isFinal=true, results.length=1). Real webkitSpeechRecognition in headless Chromium yields no words even with --use-fake-device-for-media-stream. Backend test file: /app/backend/tests/test_score.py — safe to rerun; hits the live LLM (gpt-5.4) so takes ~10s.",
+  "rca_of_issue": "N/A — no functional bugs found."
+}
